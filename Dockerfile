@@ -35,7 +35,10 @@ RUN uv venv /opt/riftbound-venv --python 3.12 \
       unsloth \
       "transformers==5.16.0" \
  && /opt/riftbound-venv/bin/python -c \
-      "import transformers, torch; print(f'transformers {transformers.__version__} torch {torch.__version__}'); import unsloth; print('unsloth OK')"
+      "import transformers, torch; print(f'transformers {transformers.__version__} torch {torch.__version__}'); import importlib.util; assert importlib.util.find_spec('unsloth'), 'unsloth missing'; print('unsloth installed OK')"
+# NOTE: unsloth is NOT importable at build time — it raises
+# NotImplementedError without an NVIDIA GPU, and GHA runners have none.
+# find_spec() verifies presence; the real import check runs on the Vast host.
 
 # Make the venv the default python for interactive/ssh use
 ENV VIRTUAL_ENV=/opt/riftbound-venv
