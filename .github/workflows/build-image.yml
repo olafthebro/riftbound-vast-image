@@ -33,3 +33,12 @@ jobs:
           tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # GHCR user packages default to PRIVATE — Vast hosts pull anonymously,
+      # so the package must be public (contents are env-build only, no IP).
+      - name: Make package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method POST user/packages/container/riftbound-vast-image/visibility \
+            -f visibility=public --jq '{visibility}'
