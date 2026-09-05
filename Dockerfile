@@ -16,7 +16,10 @@
 # setup_vast_a100.sh detects the image venv and skips the pip build; it only
 # downloads the model into the volume once, then writes .setup_ok.
 
-FROM pytorch/pytorch:2.6.0
+# NOTE: plain pytorch/pytorch:2.6.0 does NOT exist on Docker Hub (404) —
+# only suffixed tags. Vast's morning host served it from cache; fresh hosts
+# hang in "loading" forever trying to pull it. Always use the explicit tag.
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 
 # uv (fast python env manager — same tool the setup script uses)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
