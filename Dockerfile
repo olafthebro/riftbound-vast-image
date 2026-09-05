@@ -21,9 +21,9 @@
 # hang in "loading" forever trying to pull it. Always use the explicit tag.
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 
-# uv (fast python env manager — same tool the setup script uses)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
+# uv (fast python env manager). Installed via pip, NOT the curl|sh script —
+# the pipe silently masks curl failures and left uv missing (exit 127).
+RUN python -m pip install --no-cache-dir uv
 
 # Hermetic python 3.12 venv with the exact validated stack
 # (transformers pin is REQUIRED: unsloth's own 5.5.0 pin lacks gemma4_unified)
@@ -35,7 +35,7 @@ RUN uv venv /opt/riftbound-venv --python 3.12 \
       unsloth \
       "transformers==5.16.0" \
  && /opt/riftbound-venv/bin/python -c \
-      "import transformers, torch; print(f'transformers {transformers.__version__} torch {torch.__version__} cuda {torch.cuda.is_available()}'); import unsloth; print('unsloth OK')"
+      "import transformers, torch; print(f'transformers {transformers.__version__} torch {torch.__version__}'); import unsloth; print('unsloth OK')"
 
 # Make the venv the default python for interactive/ssh use
 ENV VIRTUAL_ENV=/opt/riftbound-venv
