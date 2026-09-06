@@ -25,6 +25,11 @@ FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 # the pipe silently masks curl failures and left uv missing (exit 127).
 RUN python -m pip install --no-cache-dir uv
 
+# git is required by uv to install unsloth/unsloth-zoo from git URLs
+# (the pytorch base image does not ship git)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
+
 # Hermetic python 3.12 venv with the exact validated stack.
 # 🔴 2026-09-06 lessons baked in:
 #   - unsloth 2025.9.5 (PyPI) is BROKEN with fresh torch (auto_docstring exec
