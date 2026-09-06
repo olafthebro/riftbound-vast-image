@@ -59,7 +59,22 @@ RUN uv venv /opt/riftbound-venv --python 3.12 \
 ENV VIRTUAL_ENV=/opt/riftbound-venv
 ENV PATH="/opt/riftbound-venv/bin:${PATH}"
 
-# HF speed + xet-off defaults (mirrors setup_vast_a100.sh; token comes from
-# .env.vast pushed per rent, never baked in)
+# HF speed + xet-off defaults (mirrors setup_vast_a100.sh)
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 ENV HF_HUB_DISABLE_XET=1
+
+# ==== Bake the 24GB gemma4 base model (2026-09-06) ====
+# Fresh hosts then boot with env + model ready; only the ~250MB adapter gets
+# uploaded per run. Token comes via a buildkit SECRET so it never lands in an
+# image layer (a public image + build-arg would leak it).
+# NOTE: hosts must have driver >= 570 (the venv's torch is the +cu130 build).
+RUN --mount=type=secret,id=hf_token \
+    HF_TOKEN=$(cat /run/secrets/hf_token) \
+    /opt/riftbound-venv/bin/python -c \
+      "from huggingface_hub import snapshot_download; \
+       snapshot_download('unsloth/gemma-4-12b-it', local_dir='/opt/gemma-4-12b-it', max_workers=8); \
+       print('model baked at /opt/gemma-4-12b-it')"
+# Runtime layout (no volume needed): workdir lives on the container disk;
+# onstart symlinks wire the baked env + model into ~/riftbound-train:
+#   ln -sfn /opt/riftbound-venv   /root/riftbound-train/.venv
+#   ln -sfn /opt/gemma-4-12b-it   /root/riftbound-train/models/gemma-4-12b-it
