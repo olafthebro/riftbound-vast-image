@@ -68,12 +68,20 @@ ENV HF_HUB_DISABLE_XET=1
 # uploaded per run. Token comes via a buildkit SECRET so it never lands in an
 # image layer (a public image + build-arg would leak it).
 # NOTE: hosts must have driver >= 570 (the venv's torch is the +cu130 build).
+# Default BAKE_MODEL=true keeps the model-baked image (~35GB: fast boots on a
+# cached host, slow pulls on a fresh one). Build with BAKE_MODEL=false for the
+# LEAN ENV-ONLY image: the model then lives on a Vast volume (downloaded once),
+# so fresh-host pulls are small and boots still skip the env build.
+# 2026-09-10 lesson: a 45GB pull cost 40-95 min per fresh host and three rents.
+ARG BAKE_MODEL=true
 RUN --mount=type=secret,id=hf_token \
-    HF_TOKEN=$(cat /run/secrets/hf_token) \
-    /opt/riftbound-venv/bin/python -c \
-      "from huggingface_hub import snapshot_download; \
-       snapshot_download('unsloth/gemma-4-12b-it', local_dir='/opt/gemma-4-12b-it', max_workers=8); \
-       print('model baked at /opt/gemma-4-12b-it')"
+    if [ "$BAKE_MODEL" = "true" ]; then \
+      HF_TOKEN=$(cat /run/secrets/hf_token) \
+      /opt/riftbound-venv/bin/python -c \
+        "from huggingface_hub import snapshot_download; \
+         snapshot_download('unsloth/gemma-4-12b-it', local_dir='/opt/gemma-4-12b-it', max_workers=8); \
+         print('model baked at /opt/gemma-4-12b-it')"; \
+    else echo "BAKE_MODEL=false -> env-only image (model belongs on the volume)"; fi
 # Runtime layout (no volume needed): workdir lives on the container disk;
 # onstart symlinks wire the baked env + model into ~/riftbound-train:
 #   ln -sfn /opt/riftbound-venv   /root/riftbound-train/.venv
