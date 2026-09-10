@@ -2,6 +2,12 @@ name: build-image
 
 on:
   workflow_dispatch:        # manual trigger: gh workflow run build-image
+    inputs:
+      bake_model:
+        description: 'Bake the 24GB model into the image (false = lean env-only)'
+        type: choice
+        options: ['true', 'false']
+        default: 'true'
 
 env:
   GHCR_IMAGE: ghcr.io/olafthebro/riftbound-vast-image:unsloth
@@ -34,14 +40,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push (env + baked 24GB model)
+      - name: Resolve image tag suffix
+        id: tags
+        run: |
+          if [ "${{ inputs.bake_model }}" = "false" ]; then echo "suffix=env" >> $GITHUB_OUTPUT; else echo "suffix=unsloth" >> $GITHUB_OUTPUT; fi
+
+      - name: Build and push (${{ inputs.bake_model == 'false' && 'env-only' || 'env + baked model' }})
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ env.GHCR_IMAGE }}
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/riftbound-train:unsloth
+            ghcr.io/olafthebro/riftbound-vast-image:${{ steps.tags.outputs.suffix }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/riftbound-train:${{ steps.tags.outputs.suffix }}
+          build-args: |
+            BAKE_MODEL=${{ inputs.bake_model }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # HF read token for the model download — buildkit secret, never in layers
