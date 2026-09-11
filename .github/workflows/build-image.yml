@@ -3,6 +3,11 @@ name: build-image
 on:
   workflow_dispatch:        # manual trigger: gh workflow run build-image
     inputs:
+      variant:
+        description: 'full = env image (optionally with the model baked); slim = python+uv only, stack lives on the Vast volume'
+        type: choice
+        options: ['full', 'slim']
+        default: 'full'
       bake_model:
         description: 'Bake the 24GB model into the image (false = lean env-only)'
         type: choice
@@ -43,12 +48,22 @@ jobs:
       - name: Resolve image tag suffix
         id: tags
         run: |
-          if [ "${{ inputs.bake_model }}" = "false" ]; then echo "suffix=env" >> $GITHUB_OUTPUT; else echo "suffix=unsloth" >> $GITHUB_OUTPUT; fi
+          if [ "${{ inputs.variant }}" = "slim" ]; then
+            echo "suffix=slim" >> $GITHUB_OUTPUT
+            echo "file=Dockerfile.slim" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.bake_model }}" = "false" ]; then
+            echo "suffix=env" >> $GITHUB_OUTPUT
+            echo "file=Dockerfile" >> $GITHUB_OUTPUT
+          else
+            echo "suffix=unsloth" >> $GITHUB_OUTPUT
+            echo "file=Dockerfile" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Build and push (${{ inputs.bake_model == 'false' && 'env-only' || 'env + baked model' }})
+      - name: Build and push (${{ inputs.variant == 'slim' && 'slim (python+uv only)' || (inputs.bake_model == 'false' && 'env-only' || 'env + baked model') }})
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ steps.tags.outputs.file }}
           push: true
           tags: |
             ghcr.io/olafthebro/riftbound-vast-image:${{ steps.tags.outputs.suffix }}

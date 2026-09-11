@@ -1,0 +1,41 @@
+# Riftbound Vast.ai SLIM image — the smallest thing that can boot.
+#
+# Purpose (2026-09-11): make a fresh host's image pull negligible. A host caches
+# image layers, but a *fresh* host still pulls whatever we ship, and the env
+# image is 12.5GB (5-14 min measured). This one ships NOTHING but a python
+# interpreter and uv, because everything heavy moves to the Vast volume:
+#   - the stack venv (torch/unsloth/trl/peft/transformers)
+#   - the base model (22.3GB) and the MERGED e4 base (23GB)
+#   - datasets, eval inputs, checkpoints
+#
+# Why so little is needed here: Vast's SSH launch mode injects its own setup and
+# apt-installs openssh-server, git, curl, rsync, tmux, wget on boot (observed in
+# the boot log), and torch ships its own CUDA libs while the NVIDIA container
+# runtime mounts the host driver in. Hosts still need driver >= 570 for the
+# +cu130 torch build the stack pins.
+#
+# Runtime convention:
+#   /workspace                  <- the volume mount
+#   /workspace/venv             <- the stack venv (created by vast_seed_volume.sh)
+#   /root/riftbound-train       -> symlink into /workspace/riftbound-train
+#   /root/riftbound-train/.venv -> symlink to /workspace/venv
+# The venv's absolute path is IDENTICAL on every machine, which is what keeps its
+# shebangs and .pth files valid across rents.
+#
+# Fallback: the :env and :unsloth tags stay the path for hosts where we cannot
+# pin a volume.
+
+FROM python:3.12-slim
+
+# uv, installed via pip — NOT the curl|sh script: the pipe masks curl failures
+# and once left uv missing entirely (exit 127).
+RUN python -m pip install --no-cache-dir uv
+
+# keep HuggingFace behaviour identical to the validated env image
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+ENV HF_HUB_DISABLE_XET=1
+
+# No venv, no torch, no CUDA userland, no model — by design. Seeding the volume
+# is a one-time job: bash scripts/vast_seed_volume.sh on a box with the volume
+# attached creates the venv, downloads the model, and builds the merged e4 base.
+CMD ["sleep", "infinity"]
